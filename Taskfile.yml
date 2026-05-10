@@ -1,0 +1,75 @@
+version: '3'
+
+tasks:
+  install-deps:
+    desc: Install all dependencies
+    cmds:
+      - npm install --legacy-peer-deps
+      - cd apps/frontend && npm install --legacy-peer-deps && cd ../..
+      - cd apps/backend && npm install --legacy-peer-deps && cd ../..
+      - cd apps/analysis-service && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt && cd ../..
+
+  dev:
+    desc: Start all services in development mode
+    cmds:
+      - npm run dev
+
+  build:
+    desc: Build all services
+    cmds:
+      - npm run build
+
+  lint:
+    desc: Lint all services
+    cmds:
+      - npm run lint
+
+  format:
+    desc: Format all code
+    cmds:
+      - npm run format
+
+  test:
+    desc: Run all tests
+    cmds:
+      - npm run test
+
+  docker-up:
+    desc: Start Docker containers
+    cmds:
+      - npm run docker:up
+
+  docker-down:
+    desc: Stop Docker containers
+    cmds:
+      - npm run docker:down
+
+  docker-logs:
+    desc: View Docker logs
+    cmds:
+      - npm run docker:logs
+
+  frontend-dev:
+    desc: Start frontend development server
+    dir: apps/frontend
+    cmds:
+      - npm run dev
+
+  backend-dev:
+    desc: Start backend development server
+    dir: apps/backend
+    cmds:
+      - npm run dev
+
+  analysis-dev:
+    desc: Start analysis service
+    dir: apps/analysis-service
+    cmds:
+      - source venv/bin/activate && python -m uvicorn app.main:app --reload --port 3002
+
+  setup:
+    desc: Initial project setup
+    cmds:
+      - npm run install-deps
+      - cp .env.example .env
+      - echo "✅ Setup complete! Run 'npm run docker:up' to start."

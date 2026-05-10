@@ -1,0 +1,38 @@
+# Backend - NestJS
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+# Copy monorepo root
+COPY package.json package-lock.json ./
+
+# Copy backend
+COPY apps/backend ./apps/backend
+
+# Install dependencies
+RUN npm ci
+
+# Build backend
+RUN cd apps/backend && npm run build
+
+# Production image
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install curl for health checks
+RUN apk add --no-cache curl
+
+# Copy package files
+COPY package.json package-lock.json ./
+
+# Copy from builder
+COPY --from=builder /app/apps/backend/dist ./dist
+COPY --from=builder /app/apps/backend/package.json ./
+
+# Install production dependencies
+RUN npm ci --only=production
+
+EXPOSE 3001
+
+CMD ["node", "dist/main.js"]

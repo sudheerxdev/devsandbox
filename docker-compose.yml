@@ -1,0 +1,128 @@
+version: '3.9'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: devsandbox-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-devsandbox}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devsandbox}
+      POSTGRES_DB: ${POSTGRES_DB:-devsandbox}
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-devsandbox}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - devsandbox-network
+
+  # Redis Cache & Queue
+  redis:
+    image: redis:7-alpine
+    container_name: devsandbox-redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - devsandbox-network
+
+  # NestJS Backend API
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: ../../Dockerfile.backend
+    container_name: devsandbox-backend
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DATABASE_URL: postgresql://${POSTGRES_USER:-devsandbox}:${POSTGRES_PASSWORD:-devsandbox}@postgres:5432/${POSTGRES_DB:-devsandbox}
+      REDIS_URL: redis://redis:6379
+      ANALYSIS_SERVICE_URL: http://analysis-service:3002
+      JWT_SECRET: ${JWT_SECRET:-your-secret-key-change-in-production}
+      JWT_EXPIRES_IN: 7d
+    ports:
+      - '3001:3001'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./apps/backend/src:/app/src
+      - ./apps/backend/package.json:/app/package.json
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3001/api/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - devsandbox-network
+
+  # Python FastAPI Analysis Service
+  analysis-service:
+    build:
+      context: ./apps/analysis-service
+      dockerfile: ../../Dockerfile.analysis
+    container_name: devsandbox-analysis
+    environment:
+      ANALYSIS_PORT: 3002
+      DATABASE_URL: postgresql://${POSTGRES_USER:-devsandbox}:${POSTGRES_PASSWORD:-devsandbox}@postgres:5432/${POSTGRES_DB:-devsandbox}
+      REDIS_URL: redis://redis:6379
+      ENVIRONMENT: development
+    ports:
+      - '3002:3002'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./apps/analysis-service/app:/app/app
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3002/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - devsandbox-network
+
+  # React Frontend (Development)
+  frontend:
+    build:
+      context: ./apps/frontend
+      dockerfile: ../../Dockerfile.frontend
+    container_name: devsandbox-frontend
+    environment:
+      VITE_API_URL: http://localhost:3001
+      VITE_ANALYSIS_SERVICE_URL: http://localhost:3002
+    ports:
+      - '5173:5173'
+    depends_on:
+      - backend
+      - analysis-service
+    volumes:
+      - ./apps/frontend/src:/app/src
+      - ./apps/frontend/public:/app/public
+    networks:
+      - devsandbox-network
+
+networks:
+  devsandbox-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
