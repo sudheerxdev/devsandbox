@@ -12,6 +12,7 @@ class HealthResponse(BaseModel):
     environment: str
 
 
+
 class AnalysisRequest(BaseModel):
     """Analysis request model"""
     repository_url: str
